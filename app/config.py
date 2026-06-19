@@ -1,11 +1,32 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 class Settings(BaseSettings):
-    primary_model: str = "qwen3"
+    OLLAMA_BASE_URL:str = "http://localhost:11434"
+    LLM_MODEL_NAME:str = "qwen3"
+    EMBEDDING_MODEL:str = "bge-large"
 
-    langchain_tracing_v2: bool = True 
-    langchain_api_key: str = ""
-    langchain_project: str = "production-api"
+    SUPABASE_DB_URL:str
+    EMBEDDING_DIM:int = 1024
+    VECTOR_TABLE_NAME:str = "document_chunks"
 
-    app_env: str = "development"
+    CHUNK_SIZE:int = 1000
+    CHUNK_OVERLAP:int = 200
+    CHUNKING_STRATEGY:str = "semantic"
+
+    TOP_K:int = 5
+    SIMILARITY_THRESHOLD:float|None = None
+
+    SUPPORTED_EXTENSIONS:list[str] = [".pdf"]
+
+    EMBEDDING_CACHE_MAX_SIZE:int = 10000
+
+    RETRIEVAL_CACHE_MAX_SIZE:int = 1000
+    RETRIEVAL_CACHE_TTL_SECONDS:int = 3600
+
+    LLM_CACHE_TTL_SECONDS:int = 3600
+    LLM_CACHE_MAX_SIZE:int = 1000
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+settings = Settings()
