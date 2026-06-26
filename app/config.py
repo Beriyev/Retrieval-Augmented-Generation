@@ -3,7 +3,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     OLLAMA_BASE_URL:str = "http://localhost:11434"
-    LLM_MODEL_NAME:str = "qwen3"
+    LLM_MODEL:str = "qwen3"
     EMBEDDING_MODEL:str = "bge-large"
 
     SUPABASE_DB_URL:str

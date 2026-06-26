@@ -1,4 +1,8 @@
 import pdfplumber
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_ollama import OllamaEmbeddings
+from models import Chunk
+from config import settings
 
 def extractor(filepath: str) -> list[tuple[int,str]]:
     with pdfplumber.open(filepath) as pdf:
@@ -9,5 +13,17 @@ def extractor(filepath: str) -> list[tuple[int,str]]:
                 pages_list.append((i+1,text))
         return pages_list
 
-
+def chunker(pages_list: list[tuple[int,str]], filepath:str) -> list[Chunk]:
+    embeddings_model = OllamaEmbeddings(
+        model = settings.EMBEDDING_MODEL,
+        base_url=settings.OLLAMA_BASE_URL
+    )
+    counter = 0
+    text_chunker = SemanticChunker(embeddings_model)
+    chunks_list: list[Chunk] = []
+    for page_number, page_text in pages_list:
+        chunks = text_chunker.split_text(page_text)
+        chunks_list.extend([Chunk(text=chunk, source_filename=filepath, page_number = page_number, chunk_index = counter+i) for i,chunk in enumerate(chunks)])
+        counter += len(chunks)
+    return chunks_list
 
