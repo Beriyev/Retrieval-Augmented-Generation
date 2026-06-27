@@ -27,3 +27,17 @@ def chunker(pages_list: list[tuple[int,str]], filepath:str) -> list[Chunk]:
         counter += len(chunks)
     return chunks_list
 
+def embed_chunks(chunks : list[Chunk]) -> list[tuple[Chunk,list[float]]]:
+    embeddings_model = settings.EMBEDDING_MODEL
+    texts = [chunk.text for chunk in chunks]
+    embeddings = OllamaEmbeddings(
+        model = embeddings_model,
+        base_url=settings.OLLAMA_BASE_URL
+    )
+    embeddings_list = embeddings.embed_documents(texts)
+    return_tuple : list[tuple[Chunk,list[float]]] = []
+    for i in range(len(chunks)):
+        return_tuple.append((chunks[i], embeddings_list[i]))
+    return return_tuple
+
+
