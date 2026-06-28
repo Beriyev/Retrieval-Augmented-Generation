@@ -1,8 +1,12 @@
 import pdfplumber
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_ollama import OllamaEmbeddings
+import psycopg2
 from models import Chunk
 from config import settings
+from psycopg2 import connect
+from psycopg2.extras import execute_values
+from pgvector.psycopg2 import register_vector
 
 def extractor(filepath: str) -> list[tuple[int,str]]:
     with pdfplumber.open(filepath) as pdf:
@@ -40,4 +44,15 @@ def embed_chunks(chunks : list[Chunk]) -> list[tuple[Chunk,list[float]]]:
         return_tuple.append((chunks[i], embeddings_list[i]))
     return return_tuple
 
-
+def store_chunks(chunks_pair : list[tuple[Chunk,list[float]]]) -> None:
+    conn = psycopg2.connect(settings.SUPABASE_DB_URL)
+    register_vector(conn)
+    cursor = conn.cursor()
+    query = f"INSERT INTO {settings.VECTOR_TABLE_NAME} (text, source_filename, page_number, chunk_index, embedding) VALUES %s"
+    values = []
+    for chunk,embedding in chunks_pair:
+        values.append((chunk.text,chunk.source_filename,chunk.page_number,chunk.chunk_index,embedding))
+    execute_values(cursor,query,values)
+    conn.commit()
+    cursor.close()
+    conn.close()
