@@ -9,8 +9,9 @@ class Chunk(BaseModel):
     owner_id: Optional[str] = None
 
 class RetrievalResult(BaseModel):
-    chunk: Chunk
-    similarity_score: float
+    chunk_text : str
+    source : str
+    page_number : int
 
 class RAGResponse(BaseModel):
     answer: str

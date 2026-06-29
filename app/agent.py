@@ -4,6 +4,13 @@ from langchain_ollama import OllamaEmbeddings
 from models import Chunk
 from config import settings
 import chromadb
+from langchain_community.retrievers import BM25Retriever
+from langchain_classic.retrievers import EnsembleRetriever
+from langchain_core.documents import Document
+from langchain_chroma import Chroma
+from typing import Any
+from threading import Lock
+from models import RetrievalResult
 
 
 def extractor(filepath: str) -> list[tuple[int,str]]:
@@ -28,6 +35,7 @@ def chunker(pages_list: list[tuple[int,str]], filepath:str) -> list[Chunk]:
         chunks_list.extend([Chunk(text=chunk, source_filename=filepath, page_number = page_number, chunk_index = counter+i) for i,chunk in enumerate(chunks)])
         counter += len(chunks)
     return chunks_list
+
 
 def embed_chunks(chunks : list[Chunk]) -> list[tuple[Chunk,list[float]]]:
     embeddings_model = settings.EMBEDDING_MODEL
@@ -62,3 +70,52 @@ def store_chunks(chunks_with_embeddings: list[tuple[Chunk,list[float]]]) -> None
         metadatas = metadatas
     )
     return None
+
+ensemble_retriever = None
+lock = Lock()
+
+def build_ensemble_retriever():
+    global ensemble_retriever
+    if ensemble_retriever is not None:
+        return ensemble_retriever
+    with lock:
+        if ensemble_retriever is not None:
+            return ensemble_retriever
+        client = chromadb.PersistentClient(path="./chroma_db")
+        collection = client.get_collection("document_chunks")
+        data = collection.get(include=["documents","metadatas"])
+        docs = []
+        for text,meta in zip(data["documents"],data["metadatas"]): #type: ignore 
+            docs.append(Document(page_content=text,metadata = meta))
+        db = Chroma(
+            client = client,
+            collection_name = "document_chunks",
+            embedding_function = OllamaEmbeddings(
+                model="bge-large",
+                base_url=settings.OLLAMA_BASE_URL
+            )
+        )
+        vector_retriever = db.as_retriever(
+            search_type = "similarity",
+            search_kwargs = {"k" : settings.TOP_K}
+        )
+        bm25_retriever = BM25Retriever.from_documents(docs)
+        bm25_retriever.k = settings.TOP_K
+        ensemble_retriever = EnsembleRetriever(retrievers=[bm25_retriever, vector_retriever], weights=[0.2, 0.8])
+        return vector_retriever
+
+def retrieve(query : str) -> list[RetrievalResult]:
+    global ensemble_retriever
+    if ensemble_retriever is None:
+        ensemble_retriever = build_ensemble_retriever()
+    results = ensemble_retriever.invoke(query)
+    retrieval_list = []
+    for doc in results:
+        retrieval_list.append(
+            RetrievalResult(
+                chunk_text = doc.page_content,
+                source = doc.metadata["source_filename"],
+                page_number = doc.metadata["page_number"]
+            )
+        )
+    return retrieval_list
