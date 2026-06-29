@@ -1,12 +1,10 @@
 import pdfplumber
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_ollama import OllamaEmbeddings
-import psycopg2
 from models import Chunk
 from config import settings
-from psycopg2 import connect
-from psycopg2.extras import execute_values
-from pgvector.psycopg2 import register_vector
+import chromadb
+
 
 def extractor(filepath: str) -> list[tuple[int,str]]:
     with pdfplumber.open(filepath) as pdf:
@@ -44,15 +42,23 @@ def embed_chunks(chunks : list[Chunk]) -> list[tuple[Chunk,list[float]]]:
         return_tuple.append((chunks[i], embeddings_list[i]))
     return return_tuple
 
-def store_chunks(chunks_pair : list[tuple[Chunk,list[float]]]) -> None:
-    conn = psycopg2.connect(settings.SUPABASE_DB_URL)
-    register_vector(conn)
-    cursor = conn.cursor()
-    query = f"INSERT INTO {settings.VECTOR_TABLE_NAME} (text, source_filename, page_number, chunk_index, embedding) VALUES %s"
-    values = []
-    for chunk,embedding in chunks_pair:
-        values.append((chunk.text,chunk.source_filename,chunk.page_number,chunk.chunk_index,embedding))
-    execute_values(cursor,query,values)
-    conn.commit()
-    cursor.close()
-    conn.close()
+def store_chunks(chunks_with_embeddings: list[tuple[Chunk,list[float]]]) -> None:
+    client = chromadb.PersistentClient(path="./chroma_db")
+    collection = client.get_or_create_collection("document_chunks")
+    ids = []
+    documents = []
+    embeddings = []
+    metadatas = []
+    for chunk,embedding in chunks_with_embeddings:
+        ids.append(f"{chunk.source_filename}_{chunk.page_number}_{chunk.chunk_index}")
+        documents.append(chunk.text)
+        embeddings.append(embedding)
+        metadatas.append({"source_filename": chunk.source_filename, "page_number": chunk.page_number, "chunk_index": chunk.chunk_index, "owner_id": chunk.owner_id if chunk.owner_id is not None else ""})
+
+    collection.add(
+        ids = ids,
+        documents = documents,
+        embeddings = embeddings,
+        metadatas = metadatas
+    )
+    return None

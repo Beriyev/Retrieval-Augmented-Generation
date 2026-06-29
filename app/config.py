@@ -6,9 +6,7 @@ class Settings(BaseSettings):
     LLM_MODEL:str = "qwen3"
     EMBEDDING_MODEL:str = "bge-large"
 
-    SUPABASE_DB_URL:str
     EMBEDDING_DIM:int = 1024
-    VECTOR_TABLE_NAME:str = "document_chunks"
 
     CHUNK_SIZE:int = 1000
     CHUNK_OVERLAP:int = 200

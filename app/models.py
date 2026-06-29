@@ -17,3 +17,4 @@ class RAGResponse(BaseModel):
     query: str
     sources: list[RetrievalResult] = Field(default_factory=list)
 
+
