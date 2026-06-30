@@ -11,6 +11,7 @@ from langchain_chroma import Chroma
 from typing import Any
 from threading import Lock
 from models import RetrievalResult
+from langchain_ollama import ChatOllama
 
 
 def extractor(filepath: str) -> list[tuple[int,str]]:
@@ -102,7 +103,7 @@ def build_ensemble_retriever():
         bm25_retriever = BM25Retriever.from_documents(docs)
         bm25_retriever.k = settings.TOP_K
         ensemble_retriever = EnsembleRetriever(retrievers=[bm25_retriever, vector_retriever], weights=[0.2, 0.8])
-        return vector_retriever
+        return ensemble_retriever
 
 def retrieve(query : str) -> list[RetrievalResult]:
     global ensemble_retriever
@@ -119,3 +120,26 @@ def retrieve(query : str) -> list[RetrievalResult]:
             )
         )
     return retrieval_list
+
+llm = None
+def answerer(query : str) -> str:
+    global llm
+    if llm is None:
+        llm = ChatOllama(
+            model="qwen3",
+            base_url=settings.OLLAMA_BASE_URL,
+            temperature=0.1
+        )
+    context_parts = []
+    results = retrieve(query)
+    for result in results:
+        context_parts.append(f"\n\n Source:{result.source} \n Page Number:{result.page_number} \n Chunk Text:{result.chunk_text}")
+    context = "".join(context_parts)
+    prompt = (
+        "Answer the query only based on the context below."
+        "If you don't know the answer, only say that the question is out of the context that has been provided.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Query:\n{query}\n\n"
+    )
+    answer = llm.invoke(prompt)
+    return str(answer.content)
