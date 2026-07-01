@@ -1,3 +1,4 @@
+from networkx import reverse
 import pdfplumber
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_ollama import OllamaEmbeddings
@@ -12,6 +13,7 @@ from typing import Any
 from threading import Lock
 from models import RetrievalResult
 from langchain_ollama import ChatOllama
+from sentence_transformers import CrossEncoder
 
 
 def extractor(filepath: str) -> list[tuple[int,str]]:
@@ -121,6 +123,22 @@ def retrieve(query : str) -> list[RetrievalResult]:
         )
     return retrieval_list
 
+reranker = None
+
+def rerank(query : str, results : list[RetrievalResult]) -> list[RetrievalResult]:
+    global reranker
+    if reranker is None:
+        reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-12-v2")
+    pairs = []
+    for result in results:
+        pairs.append((query, result.chunk_text))
+    scores = reranker.predict(pairs)
+    ranked_results = sorted(zip(results,scores),key=lambda x : x[1],reverse = True)
+    result_list = []
+    for i in range(0,settings.RERANKING_TOP_K):
+        result_list.append(ranked_results[i][0])
+    return result_list        
+
 llm = None
 def answerer(query : str) -> str:
     global llm
@@ -131,7 +149,7 @@ def answerer(query : str) -> str:
             temperature=0.1
         )
     context_parts = []
-    results = retrieve(query)
+    results = rerank(query, retrieve(query))
     for result in results:
         context_parts.append(f"\n\n Source:{result.source} \n Page Number:{result.page_number} \n Chunk Text:{result.chunk_text}")
     context = "".join(context_parts)

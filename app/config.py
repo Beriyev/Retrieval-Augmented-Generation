@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP:int = 200
     CHUNKING_STRATEGY:str = "semantic"
 
-    TOP_K:int = 5
+    TOP_K:int = 15
+    RERANKING_TOP_K:int = 5
     SIMILARITY_THRESHOLD:float|None = None
 
     SUPPORTED_EXTENSIONS:list[str] = [".pdf"]
